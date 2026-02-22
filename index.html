@@ -1534,7 +1534,7 @@ body.edit .add-cert{display:flex}
   <svg viewBox="0 0 20 20" fill="none"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.793 8.793-3.535.707.707-3.535 8.793-8.793z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
   <span id="elbl">편집 모드</span>
 </div>
-<button id="sfab" style="display:none;">
+<button id="sfab" style="display:none;" onclick="saveFile()">
   <svg viewBox="0 0 20 20" fill="none"><path d="M3 17h14M10 3v10m0 0l-3-3m3 3l3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
   저장하기
 </button>
@@ -1985,6 +1985,7 @@ function exitEdit(){
   document.getElementById('sfab').style.display='none';
   document.querySelectorAll('[contenteditable]').forEach(function(el){el.removeAttribute('contenteditable');});
   document.getElementById('detail-edit-hint').style.display='block';
+  var peh=document.getElementById('paper-edit-hint');if(peh)peh.style.display='block';
 }
 
 function delCard(card){
@@ -2253,7 +2254,161 @@ document.getElementById('img-file-input').addEventListener('change', function(e)
   e.target.value = '';
 });
 
+// ============ PAPER ============
+var paperData = {};
+var paperCount = 2;
+var pmTags = [];
 
+function openPaper(el){
+  var pid = el.dataset.pid;
+  var title = el.querySelector('.paper-title').textContent;
+  var authors = el.querySelector('.paper-authors').textContent;
+  var journal = el.querySelector('.paper-journal').textContent;
+  var yearEl = el.querySelector('.paper-year');
+  var year = yearEl ? yearEl.textContent : '';
+  if(!paperData[pid]) paperData[pid]={abstract:'',note:''};
+  document.getElementById('pd-title').textContent = title;
+  document.getElementById('pd-authors').textContent = authors;
+  document.getElementById('pd-journal').textContent = journal;
+  document.getElementById('pd-year').textContent = year;
+  document.getElementById('pd-abstract').innerHTML = paperData[pid].abstract || '논문 초록이나 요약을 여기에 작성하세요.';
+  document.getElementById('pd-note').innerHTML = paperData[pid].note || '';
+  ['pd-abstract','pd-note'].forEach(function(id){
+    var e2=document.getElementById(id);
+    if(!e2) return;
+    if(editing){e2.setAttribute('contenteditable','true');e2.setAttribute('spellcheck','false');}
+    else{e2.removeAttribute('contenteditable');}
+  });
+  document.getElementById('paper-overlay').dataset.pid = pid;
+  document.getElementById('paper-overlay').classList.add('on');
+  document.getElementById('paper-edit-hint').style.display = editing ? 'none' : 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closePaper(){
+  var pid = document.getElementById('paper-overlay').dataset.pid;
+  if(pid !== undefined){
+    if(!paperData[pid]) paperData[pid]={abstract:'',note:''};
+    paperData[pid].abstract = document.getElementById('pd-abstract').innerHTML;
+    paperData[pid].note = document.getElementById('pd-note').innerHTML;
+    var card = document.querySelector('.paper-card[data-pid="'+pid+'"]');
+    if(card){
+      var hasNote = document.getElementById('pd-note').textContent.trim().length > 0;
+      var dot = card.querySelector('.paper-has-note');
+      if(hasNote && !dot){var d=document.createElement('div');d.className='paper-has-note';card.appendChild(d);}
+      else if(!hasNote && dot){dot.remove();}
+    }
+  }
+  document.getElementById('paper-overlay').classList.remove('on');
+  document.body.style.overflow = '';
+}
+
+function delPaper(card){
+  if(!confirm('이 논문을 삭제할까요?')) return;
+  card.style.transition='opacity .25s,transform .25s';
+  card.style.opacity='0';card.style.transform='scale(.93)';
+  setTimeout(function(){card.remove();},270);
+}
+
+function openPaperModal(){
+  if(!editing) return;
+  document.getElementById('paper-modal-overlay').classList.add('on');
+  setTimeout(function(){document.getElementById('pm-title').focus();},100);
+}
+
+function closePaperModal(){
+  document.getElementById('paper-modal-overlay').classList.remove('on');
+  ['pm-title','pm-authors','pm-journal','pm-year'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  pmTags=[];renderPaperTags();
+}
+
+function addPaperTag(event){
+  if(event.key!=='Enter') return;
+  event.preventDefault();
+  var v=document.getElementById('pm-tinput').value.trim();
+  if(v&&pmTags.indexOf(v)<0){pmTags.push(v);renderPaperTags();}
+  document.getElementById('pm-tinput').value='';
+}
+
+function renderPaperTags(){
+  var wrap=document.getElementById('pm-twrap');
+  wrap.innerHTML='';
+  pmTags.forEach(function(t,i){var c=document.createElement('div');c.className='tchip';c.innerHTML=t+' <span class="tx" onclick="rmPaperTag('+i+')">x</span>';wrap.appendChild(c);});
+  var inp=document.createElement('input');inp.id='pm-tinput';inp.className='tinput';inp.placeholder='입력 후 Enter';inp.setAttribute('onkeydown','addPaperTag(event)');wrap.appendChild(inp);
+}
+
+function rmPaperTag(i){pmTags.splice(i,1);renderPaperTags();}
+
+function savePaper(){
+  var title=document.getElementById('pm-title').value.trim();
+  if(!title){document.getElementById('pm-title').focus();return;}
+  var authors=document.getElementById('pm-authors').value.trim()||'—';
+  var journal=document.getElementById('pm-journal').value.trim()||'—';
+  var year=document.getElementById('pm-year').value.trim()||'';
+  var tags=pmTags.slice();
+  paperCount++;
+  var numStr=String(paperCount);while(numStr.length<3)numStr='0'+numStr;
+  var pid=String(paperCount);
+  var tagsHTML=tags.map(function(t){return '<span class="paper-tag">'+t+'</span>';}).join('');
+  var journalTxt=journal+(year?' · '+year:'');
+  var card=document.createElement('div');
+  card.className='paper-card';card.dataset.pid=pid;
+  card.setAttribute('onclick','openPaper(this)');
+  card.innerHTML='<button class="del-btn" onclick="event.stopPropagation();delPaper(this.closest(\'.paper-card\'))">×</button>'+
+    '<div><div class="paper-num">PAPER — '+numStr+'</div><div class="paper-title">'+title+'</div></div>'+
+    '<div class="paper-authors">'+authors+'</div>'+
+    '<div class="paper-journal">'+journalTxt+'</div>'+
+    (tagsHTML?'<div class="paper-tags">'+tagsHTML+'</div>':'')+
+    '<div class="paper-footer"><span class="paper-year">'+(year||'—')+'</span><span class="paper-read">느낀점 읽기 →</span></div>';
+  document.getElementById('add-paper').before(card);
+  closePaperModal();
+}
+
+document.getElementById('paper-modal-overlay').addEventListener('click',function(e){if(e.target.id==='paper-modal-overlay')closePaperModal();});
+
+// ============ CERTIFICATIONS ============
+var certColorPicked={color:'#3182F6',bg:'rgba(49,130,246,.07)'};
+
+function openCertModal(){
+  if(!editing) return;
+  document.getElementById('cert-modal-overlay').classList.add('on');
+  setTimeout(function(){document.getElementById('cm-name').focus();},100);
+}
+
+function closeCertModal(){
+  document.getElementById('cert-modal-overlay').classList.remove('on');
+  ['cm-name','cm-org','cm-date','cm-badge','cm-icon'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  document.querySelectorAll('.cert-color-pick').forEach(function(p){p.classList.remove('on');});
+  var first=document.querySelector('.cert-color-pick');
+  if(first){first.classList.add('on');certColorPicked={color:first.dataset.color,bg:first.dataset.bg};}
+}
+
+function pickCertColor(el){
+  document.querySelectorAll('.cert-color-pick').forEach(function(p){p.classList.remove('on');});
+  el.classList.add('on');
+  certColorPicked={color:el.dataset.color,bg:el.dataset.bg};
+}
+
+function saveCert(){
+  var name=document.getElementById('cm-name').value.trim();
+  if(!name){document.getElementById('cm-name').focus();return;}
+  var org=document.getElementById('cm-org').value.trim()||'—';
+  var date=document.getElementById('cm-date').value.trim()||'—';
+  var badge=document.getElementById('cm-badge').value.trim()||'Certification';
+  var icon=document.getElementById('cm-icon').value.trim()||'🏆';
+  var card=document.createElement('div');
+  card.className='cert-card';
+  card.style.cssText='--cert-color:'+certColorPicked.color+';--cert-bg:'+certColorPicked.bg+';';
+  card.innerHTML='<button class="del-btn" onclick="this.closest(\'.cert-card\').remove()">×</button>'+
+    '<div class="cert-icon-wrap">'+icon+'</div>'+
+    '<div class="cert-name">'+name+'</div>'+
+    '<div class="cert-org">'+org+'</div>'+
+    '<div class="cert-footer"><span class="cert-date">'+date+'</span><span class="cert-badge">'+badge+'</span></div>';
+  document.getElementById('add-cert').before(card);
+  closeCertModal();
+}
+
+document.getElementById('cert-modal-overlay').addEventListener('click',function(e){if(e.target.id==='cert-modal-overlay')closeCertModal();});
 
 </script>
 
