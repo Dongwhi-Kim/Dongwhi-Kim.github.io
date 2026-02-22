@@ -1147,7 +1147,7 @@ body.edit .add-cert{display:flex}
 </style>
 <script id="saved-project-data">var __savedProjectData={};</script></head>
 <body class="intro-on" id="artifacts-component-root-html" style="background-color: transparent;">
-<div id="fade-cover" class="out"><div id="fc-dot" class="go"></div></div>
+<div id="fade-cover"><div id="fc-dot"></div></div>
 <div id="pw-overlay" style="display:none;">
   <div id="pw-label">Enter Password</div>
   <div id="pw-boxes" style="display:flex;gap:10px;margin:4px 0;">
@@ -2037,6 +2037,9 @@ function saveFile(){
   html=html.replace(/(<button id="sfab")[^>]*style="[^"]*"/,'$1 style="display:none;"');
   // pw-overlay 초기화
   html=html.replace(/(<div id="pw-overlay")[^>]*style="[^"]*"/,'$1 style="display:none;"');
+  // fade-cover / fc-dot 클래스 리셋 (애니메이션 초기 상태 복원)
+  html=html.replace(/(<div id="fade-cover")[^>]*>/,'$1>');
+  html=html.replace(/(<div id="fc-dot")[^>]*>/,'$1>');
   // rv.on 클래스 제거 (애니메이션 초기화)
   html=html.replace(/\bclass="(rv[^"]*)\bon\b([^"]*)"/g,function(m,a,b){return 'class="'+(a+' '+b).replace(/\s+/g,' ').trim()+'"';});
 
